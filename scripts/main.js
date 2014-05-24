@@ -30,11 +30,13 @@ define([
   var col = L.lens('col')
   var row = L.lens('row')
 
-  var allPlaces = [
+  var gridPlaces = [
     [Loc(A, A), Loc(B, A), Loc(C, A)],
     [Loc(A, B), Loc(B, B), Loc(C, B)],
     [Loc(A, C), Loc(B, C), Loc(C, C)]
   ]
+
+  var allPlaces = M.flatten(gridPlaces)
 
   /* A player is either X or O */
   var X = 'X'
@@ -59,8 +61,7 @@ define([
   var Score = function () {
     return M.hash_map(
       X, 0,
-      O, 0
-    )
+      O, 0 )
   }
 
   /* A game is a hash of a player, a play state, and a board */
@@ -75,8 +76,8 @@ define([
   }
 
   /* An action is a function that can update the game state. */
-  var Action = function (f) {
-    return function (actionBus) {
+  var Action = function (actionBus) {
+    return function (f) {
       return function () { return actionBus.push(f) }
     }
   }
@@ -100,10 +101,9 @@ define([
   /** Actions **/
 
   //  Reset everything except the score
-  var doReset = Action(function (game) {
-    var s = score.get(game)
-    return score.set(s)(Game())
-  })
+  var reset = function (game) {
+    return score.set(score.get(game))(Game())
+  }
 
   var incScore = function (p) {
     return playerScore(p).mod(function (v) { return v + 1 })
@@ -115,20 +115,67 @@ define([
     }
   }
 
-  var doPlace = function (loc) {
-    return Action(whenActive(function (game) {
+  var winningPaths = [
+    //  Diagonals
+    [Loc(A, A), Loc(B, B), Loc(C, C)],
+    [Loc(C, A), Loc(B, B), Loc(A, C)],
 
-      var p = player.get(game)
-      var g0 = at(loc).set(p)(game)
-      return switchPlayer(g0)
-    }))
+    //  Verticals
+    [Loc(A, A), Loc(A, B), Loc(A, C)],
+    [Loc(B, A), Loc(B, B), Loc(B, C)],
+    [Loc(C, A), Loc(C, B), Loc(C, C)],
+
+    //  Horizontals
+    [Loc(A, A), Loc(B, A), Loc(C, A)],
+    [Loc(A, B), Loc(B, B), Loc(C, B)],
+    [Loc(A, C), Loc(B, C), Loc(C, C)]
+  ]
+
+  var winningPath = function (game, path) {
+    var base = M.first(path)
+    var rest = M.rest(path)
+    var p = at(base).get(game)
+    return p ? M.every(function (loc) {
+      return (p === at(loc).get(game))
+    }, rest) : false
   }
 
-  var doForfeit = Action(whenActive(function (game) {
+  var winningState = function (game) {
+    return M.some(M.partial(winningPath, game), winningPaths)
+  }
+
+  var noMovesLeft = function (game) {
+    return M.every(function (loc) {
+      return at(loc).get(game)
+    }, allPlaces)
+  }
+
+  var checkState = function (game) {
+    return winningState(game) ? Won :
+           noMovesLeft(game) ? Draw :
+           play.get(game)
+  }
+
+  var place = function (loc) {
+    return whenActive(function (game) {
+      var cur = at(loc).get(game)
+      if (cur) return game
+      else {
+        var p = player.get(game)
+        var g0 = at(loc).set(p)(game)
+        var state = checkState(g0)
+        return (state === Active) ?
+          switchPlayer(g0) :
+          incScore(p)(play.set(state)(g0))
+      }
+    })
+  }
+
+  var forfeit = whenActive(function (game) {
     var g0 = switchPlayer(game)
     var p = player.get(g0)
     return M.comp(play.set(Won), incScore(p))(g0)
-  }))
+  })
 
 
 
@@ -157,16 +204,17 @@ define([
       }))
   }
 
-  var Grid = function (actions, grid) {
+  var Grid = function (run, game) {
     return _.pre({ className: 'well text-center' },
-      allPlaces.map(function (places) {
+      gridPlaces.map(function (places) {
 
         return _.div(null, places.map(function (p) {
-          var cell = at(p).get(grid)
+          var cell = at(p).get(game)
 
           return _.button({
-            onClick: doPlace(p)(actions),
-            className: 'btn btn-lg btn-' + getStyle(cell)
+            onClick: run(place(p)),
+            className: 'btn btn-lg btn-' + getStyle(cell),
+            disabled: Active !== play.get(game)
           }, _.span(null, (cell || '-').toString()))
 
         }))
@@ -194,12 +242,15 @@ define([
     return M.get(statusAlert, play.get(game))(game)
   }
 
-  var Controls = function (actions) {
+  var Controls = function (run, game) {
     return _.div(null,
-      _.button({className: 'btn btn-danger', onClick: doReset(actions) },
+      _.button({className: 'btn btn-danger', onClick: run(reset) },
         'Reset'),
       ' ',
-      _.button({className: 'btn btn-info', onClick: doForfeit(actions) },
+      _.button(
+        { className: 'btn btn-info'
+        , onClick: run(forfeit)
+        , disabled: Active !== play.get(game) },
         'Forfeit'))
   }
 
@@ -214,7 +265,7 @@ define([
     * This renders the game info, the game grid, controls, and debug data.
     */
   //: Bus Action -> Game -> DOM
-  var render = function (actions) {
+  var render = function (run) {
     return function (game) {
       return _.div(null,
         _.h1(null, 'Xs and Os'),
@@ -224,11 +275,11 @@ define([
             Scores(game)),
 
           _.div({ className: 'col-xs-8' },
-            Grid(actions, game))
+            Grid(run, game))
         ),
 
         Status(game),
-        Controls(actions),
+        Controls(run, game),
 
         Debug(game)
       )
@@ -252,7 +303,7 @@ define([
   /** Convert all game states into React DOM, threadding through the input bus
     * for the components to link up events (reset button, cells, etc)
     */
-  var views = games.map(render(input))
+  var views = games.map(render(Action(input)))
 
   /* Render every view to the real DOM */
   views.onValue(function (dom) {

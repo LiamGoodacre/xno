@@ -4,14 +4,6 @@ xno
 Functional Noughts and Crosses
 
 
-To do
------
-
-* Active play step
-* End game detection
-* Score keeping
-
-
 Libraries used
 --------------
 

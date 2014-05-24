@@ -4,7 +4,7 @@
 define(['mori'], function (M) {
   var Lib = {}
 
-  var modify = function (l) {
+  var mod = Lib.mod = function (l) {
     return function (f) {
       return function (m) {
         return l.set(f(l.get(m)))(m)
@@ -16,15 +16,15 @@ define(['mori'], function (M) {
     var inst = {}
     inst.get = get
     inst.set = set
-    inst.mod = modify(inst)
+    inst.mod = mod(inst)
     return inst
   }
 
-  var get = Lib.get = function (k) {
+  var get = function (k) {
     return function (m) { return M.get(m, k) }
   }
 
-  var set = Lib.set = function (k) {
+  var set = function (k) {
     return function (v) {
       return function (m) { return M.assoc(m, k, v) }
     }
@@ -33,6 +33,9 @@ define(['mori'], function (M) {
   var lens = Lib.lens = function (k) {
     return Lens(get(k), set(k))
   }
+
+  Lib.get = function (l) { return l.get }
+  Lib.set = function (l) { return l.set }
 
   var id = function (v) { return v }
 

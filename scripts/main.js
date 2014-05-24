@@ -39,6 +39,12 @@ define([
   var X = 'X'
   var O = 'O'
 
+  /* Given a player, return the other. */
+  //: Player -> Player
+  var otherPlayer = function (player) {
+    return (X == player) ? O : X
+  }
+
   /* Play is either Active, a Draw, or Won */
   var Active = 'Active'
   var Draw = 'Draw'
@@ -57,6 +63,13 @@ define([
     )
   }
 
+  /* An action is a function that can update the game state. */
+  var Action = function (f) {
+    return function (actionBus) {
+      return function () { return actionBus.push(f) }
+    }
+  }
+
   /* Lenses for games and boards */
   var player = L.lens('player')
   var play = L.lens('play')
@@ -65,20 +78,9 @@ define([
     return L.comp(board, L.lens(k))
   }
 
-  var otherPlayer = function (player) {
-    return (X == player) ? O : X
-  }
-
+  /* Switch the player in a game. */
+  //: Game -> Game
   var switchPlayer = player.mod(otherPlayer)
-
-  var step = function (game, input) {
-    return input(game) }
-
-  var Action = function (f) {
-    return function (actionBus) {
-      return function () { return actionBus.push(f) }
-    }
-  }
 
   var reset = Action(Game)
 
@@ -89,6 +91,10 @@ define([
       return switchPlayer(g)
     })
   }
+
+
+
+  /** Rendering **/
 
   var Btn = function (ps, xs) {
     ps.className += ' btn btn-default btn-lg '
@@ -125,8 +131,16 @@ define([
     }
   }
 
+
+
+  /** Input, state, and view **/
+
   var input = new Bacon.Bus()
-  var games = input.scan(Game(), step)
+
+  var games = input.scan(Game(), function (game, input) {
+    return input(game)
+  })
+
   var views = games.map(render(input))
 
   views.onValue(function (dom) {

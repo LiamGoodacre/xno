@@ -82,9 +82,13 @@ define([
   //: Game -> Game
   var switchPlayer = player.mod(otherPlayer)
 
-  var reset = Action(Game)
 
-  var place = function (loc) {
+
+  /** Actions **/
+
+  var doReset = Action(Game)
+
+  var doPlace = function (loc) {
     return Action(function (game) {
       var p = player.get(game)
       var g = at(loc).set(p)(game)
@@ -96,18 +100,41 @@ define([
 
   /** Rendering **/
 
-  var Btn = function (ps, xs) {
-    ps.className += ' btn btn-default btn-lg '
-    return _.button(ps, xs)
+  /* What kind of styling should each player be associated with */
+  var playerStyle = M.hash_map(
+    X, 'primary',
+    O, 'warning'
+  )
+
+  /* Retrieve a player style or default */
+  var getStyle = function (p) {
+    return M.get(playerStyle, p) || 'default'
+  }
+
+  var Info = function (game) {
+    var p = player.get(game)
+    var style = getStyle(p)
+
+    return _.blockquote(null,
+      'Current player: ',
+      _.span({ className: 'label label-' + style },
+        player.get(game).toString()))
   }
 
   var Grid = function (actions, grid) {
-    return _.pre({ className: 'well text-center' }, allPlaces.map(function (places) {
-      return _.div(null, places.map(function (p) {
-        return Btn({ onClick: place(p)(actions) },
-          _.span(null, (at(p).get(grid) || '-').toString()))
+    return _.pre({ className: 'well text-center' },
+      allPlaces.map(function (places) {
+
+        return _.div(null, places.map(function (p) {
+          var cell = at(p).get(grid)
+
+          return _.button({
+            onClick: doPlace(p)(actions),
+            className: 'btn btn-lg btn-' + getStyle(cell)
+          }, _.span(null, (cell || '-').toString()))
+
+        }))
       }))
-    }))
   }
 
   var Debug = function (game) {
@@ -117,15 +144,23 @@ define([
     ])
   }
 
+  /** Given an action bus, generate a game rendering function.
+    * This renders the game info, the game grid, controls, and debug data.
+    */
+  //: Bus Action -> Game -> DOM
   var render = function (actions) {
     return function (game) {
       return _.div(null, [
         _.div(null, [
           _.h1(null, 'Xs and Os'),
           _.h2(null, 'GAME ON!') ]),
-        _.blockquote(null, 'Player: ' + player.get(game).toString()),
+        Info(game),
         Grid(actions, game),
-        _.div(null, Btn({ onClick: reset(actions) }, 'Reset')),
+        _.div(null,
+          _.button({
+            className: 'btn btn-danger',
+            onClick: doReset(actions)
+          }, 'Reset')),
         Debug(game)
       ])
     }
@@ -135,14 +170,22 @@ define([
 
   /** Input, state, and view **/
 
+  //  A bus for any user action (reset, play cell, etc)
   var input = new Bacon.Bus()
 
+  /** Starting at the initial game, update the game based on any user input
+    * that occurs.
+    */
   var games = input.scan(Game(), function (game, input) {
     return input(game)
   })
 
+  /** Convert all game states into React DOM, threadding through the input bus
+    * for the components to link up events (reset button, cells, etc)
+    */
   var views = games.map(render(input))
 
+  /* Render every view to the real DOM */
   views.onValue(function (dom) {
     return React.renderComponent(dom, document.querySelector('.game'))
   })

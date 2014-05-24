@@ -13,7 +13,8 @@ define([
   Player = X | O
   Board = Map Loc Player
   Play = Active | Draw | Won
-  Game = Player * Play * Board
+  Score = Map Player Int
+  Game = Player * Play * Board * Score
   Void = () -> ()
   Action = Bus (Game -> Game) -> Void
   */
@@ -38,6 +39,7 @@ define([
   /* A player is either X or O */
   var X = 'X'
   var O = 'O'
+  var players = [X, O]
 
   /* Given a player, return the other. */
   //: Player -> Player
@@ -53,13 +55,22 @@ define([
   /* A game board is a mapping from Locations to Players */
   var Board = M.hash_map //: Map Loc Player
 
+  /* Score is a mapping from Players to Integers */
+  var Score = function () {
+    return M.hash_map(
+      X, 0,
+      O, 0
+    )
+  }
+
   /* A game is a hash of a player, a play state, and a board */
   var Game = function () {
     //  The default game
     return M.hash_map(
       'player', X,        //  Player X to go first
       'play', Active,     //  Ready for play
-      'board', Board()    //  The empty board
+      'board', Board(),   //  The empty board
+      'score', Score()
     )
   }
 
@@ -75,8 +86,10 @@ define([
   var play = L.lens('play')
   var board = L.lens('board')
   var at = function (k) {
-    return L.comp(board, L.lens(k))
-  }
+    return L.comp(board, L.lens(k)) }
+  var score = L.lens('score')
+  var playerScore = function (p) {
+    return L.comp(score, L.lens(p)) }
 
   /* Switch the player in a game. */
   //: Game -> Game
@@ -86,15 +99,36 @@ define([
 
   /** Actions **/
 
-  var doReset = Action(Game)
+  //  Reset everything except the score
+  var doReset = Action(function (game) {
+    var s = score.get(game)
+    return score.set(s)(Game())
+  })
+
+  var incScore = function (p) {
+    return playerScore(p).mod(function (v) { return v + 1 })
+  }
+
+  var whenActive = function (f) {
+    return function (game) {
+      return play.get(game) === Active ? f(game) : game
+    }
+  }
 
   var doPlace = function (loc) {
-    return Action(function (game) {
+    return Action(whenActive(function (game) {
+
       var p = player.get(game)
-      var g = at(loc).set(p)(game)
-      return switchPlayer(g)
-    })
+      var g0 = at(loc).set(p)(game)
+      return switchPlayer(g0)
+    }))
   }
+
+  var doForfeit = Action(whenActive(function (game) {
+    var g0 = switchPlayer(game)
+    var p = player.get(g0)
+    return M.comp(play.set(Won), incScore(p))(g0)
+  }))
 
 
 
@@ -102,7 +136,7 @@ define([
 
   /* What kind of styling should each player be associated with */
   var playerStyle = M.hash_map(
-    X, 'primary',
+    X, 'info',
     O, 'warning'
   )
 
@@ -111,14 +145,16 @@ define([
     return M.get(playerStyle, p) || 'default'
   }
 
-  var Info = function (game) {
-    var p = player.get(game)
-    var style = getStyle(p)
-
-    return _.blockquote(null,
-      'Current player: ',
-      _.span({ className: 'label label-' + style },
-        player.get(game).toString()))
+  var Scores = function (game) {
+    return _.div(null,
+      _.h3(null, 'Scores'),
+      players.map(function (p) {
+        return _.p(null,
+          'Player ',
+          p.toString(),
+          ': ',
+          playerScore(p).get(game))
+      }))
   }
 
   var Grid = function (actions, grid) {
@@ -137,11 +173,41 @@ define([
       }))
   }
 
+  var statusAlert = M.hash_map(
+    Active, function (game) {
+      var p = player.get(game)
+      var style = getStyle(p)
+      return _.div({ className: 'text-center alert alert-' + style },
+        player.get(game).toString() + ' to go!')
+    },
+    Draw, function (game) {
+      return _.div({ className: 'alert alert-danger text-center' },
+        'It\'s a draw!')
+    },
+    Won, function (game) {
+      return _.div({ className: 'alert alert-success text-center' },
+        player.get(game).toString() + ' won!!!')
+    }
+  )
+
+  var Status = function (game) {
+    return M.get(statusAlert, play.get(game))(game)
+  }
+
+  var Controls = function (actions) {
+    return _.div(null,
+      _.button({className: 'btn btn-danger', onClick: doReset(actions) },
+        'Reset'),
+      ' ',
+      _.button({className: 'btn btn-info', onClick: doForfeit(actions) },
+        'Forfeit'))
+  }
+
   var Debug = function (game) {
-    return _.div(null, [
+    return _.div(null,
       _.h2(null, 'State'),
       _.pre({ className: 'well' }, game.toString())
-    ])
+    )
   }
 
   /** Given an action bus, generate a game rendering function.
@@ -150,19 +216,22 @@ define([
   //: Bus Action -> Game -> DOM
   var render = function (actions) {
     return function (game) {
-      return _.div(null, [
-        _.div(null, [
-          _.h1(null, 'Xs and Os'),
-          _.h2(null, 'GAME ON!') ]),
-        Info(game),
-        Grid(actions, game),
-        _.div(null,
-          _.button({
-            className: 'btn btn-danger',
-            onClick: doReset(actions)
-          }, 'Reset')),
+      return _.div(null,
+        _.h1(null, 'Xs and Os'),
+
+        _.div({ className: 'row' },
+          _.div({ className: 'col-xs-4' },
+            Scores(game)),
+
+          _.div({ className: 'col-xs-8' },
+            Grid(actions, game))
+        ),
+
+        Status(game),
+        Controls(actions),
+
         Debug(game)
-      ])
+      )
     }
   }
 

@@ -278,7 +278,7 @@ define([
   //  A bus for any user action (reset, play cell, etc)
   var input = new Bacon.Bus()
 
-  // An action is a function that can update the game state.
+  //  Push an action to the input stream
   var runAction = function (f) {
     return function () { return input.push(f) } }
 
@@ -289,7 +289,7 @@ define([
 
 
 
-  //  Convert all game states into React DOM, threadding through the input bus
+  //  Convert all game states into React DOM, threading through the input bus
   //  for the components to link up events (reset button, cells, etc)
   var views = games.map(render(runAction))
 

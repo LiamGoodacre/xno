@@ -34,9 +34,6 @@ define([
   var X = 'X'
   var O = 'O'
 
-  var col = L.lens('col')
-  var row = L.lens('row')
-
   //  Play is either Active, a Draw, or Won
   var Active = 'Active'
   var Draw = 'Draw'

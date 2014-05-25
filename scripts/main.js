@@ -5,15 +5,17 @@ define([
   'lens'
 ], function (React, Bacon, M, L) {
 
-  /*
+  /** Types **
+
   Scalar = A | B | C
   Loc = Scalar * Scalar
   Player = X | O
   Board = Map Loc Player
   Play = Active | Draw | Won
-  Score = Map Player Int
+  Score = Map Player Nat
   Game = Player * Play * Board * Score
   Action = Game -> Game
+
   */
 
   //  A scalar is a three-valued type for col/row indexing

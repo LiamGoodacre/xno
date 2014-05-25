@@ -53,21 +53,18 @@ define([
 
   //  A game board is a mapping from Locations to Players
   //: Map Loc Player
-  var Board = M.hash_map
+  var initBoard = M.hash_map()
 
   //  Score is a mapping from Players to Integers
   //: Map Player Int
-  var Score = function () {
-    return M.hash_map(X, 0, O, 0) }
+  var initScore = M.hash_map(X, 0, O, 0)
 
-  var Game = function () {
-    //  The default game
-    return M.hash_map(
-      'player', X,        //  Player X to go first
-      'play', Active,     //  Ready for play
-      'board', Board(),   //  The empty board
-      'score', Score()    //  Initial scores
-    ) }
+  var initGame = M.hash_map(
+    'player', X,          //  Player X to go first
+    'play', Active,       //  Ready for play
+    'board', initBoard,   //  The empty board
+    'score', initScore    //  Initial scores
+  )
 
   //  Lenses for games and boards
   var player = L.lens('player')
@@ -92,7 +89,7 @@ define([
   //  Reset everything except the score
   //: Action
   var reset = function (game) {
-    return score.set(score.get(game))(Game()) }
+    return score.set(score.get(game))(initGame) }
 
   //: Player -> Action
   var incScore = function (p) {
@@ -282,7 +279,7 @@ define([
 
   //  Starting at the initial game, update the game based on any user input
   //  that occurs.
-  var games = input.scan(Game(),
+  var games = input.scan(initGame,
     function (game, input) { return input(game) })
 
 

@@ -133,30 +133,23 @@ var Loc = function (col, row) {
 A `Board` is a Mori hash_map from locations to players.
 
 ~~~js
-var Board = M.hash_map
+var initBoard = M.hash_map()
 ~~~
 
 `Score` is a Mori hash_map from Players to Naturals.
-The default `Score` has both players associated with 0.
+The initial `Score` has both players associated with 0.
 
 ~~~js
-var Score = function () {
-  return M.hash_map(X, 0, O, 0) }
+var initScore = M.hash_map(X, 0, O, 0)
 ~~~
 
 A `Game` has a current `Player`, `Play`, `Board`, and `Score`.
-* Default player is `X`
-* Default play is `Active`
-* Default board is empty
-* Default scores are 0
 
 ~~~js
-var Game = function () {
-  //  The default game
-  return M.hash_map(
-    'player', X,        //  Player X to go first
-    'play', Active,     //  Ready for play
-    'board', Board(),   //  The empty board
-    'score', Score()    //  Initial scores
-  ) }
+var initGame = M.hash_map(
+  'player', X,          //  Player X to go first
+  'play', Active,       //  Ready for play
+  'board', initBoard,   //  The empty board
+  'score', initScore    //  Initial scores
+)
 ~~~

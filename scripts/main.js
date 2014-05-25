@@ -18,6 +18,9 @@ define([
 
   */
 
+
+  /** data, constructors, types, initial values, etc **/
+
   //  A scalar is a three-valued type for col/row indexing
   var A = 'A'
   var B = 'B'
@@ -27,24 +30,12 @@ define([
   var Loc = function (col, row) {
     return M.hash_map('col', col, 'row', row) }
 
-  var col = L.lens('col')
-  var row = L.lens('row')
-
-  var gridPlaces = [
-    [Loc(A, A), Loc(B, A), Loc(C, A)],
-    [Loc(A, B), Loc(B, B), Loc(C, B)],
-    [Loc(A, C), Loc(B, C), Loc(C, C)]]
-
-  var allPlaces = M.flatten(gridPlaces)
-
   //  A player is either X or O
   var X = 'X'
   var O = 'O'
 
-  //  Given a player, return the other.
-  //: Player -> Player
-  var otherPlayer = function (player) {
-    return (X == player) ? O : X }
+  var col = L.lens('col')
+  var row = L.lens('row')
 
   //  Play is either Active, a Draw, or Won
   var Active = 'Active'
@@ -66,6 +57,19 @@ define([
     'score', initScore    //  Initial scores
   )
 
+  //  All possible locations in rows & columns
+  var gridPlaces = [
+    [Loc(A, A), Loc(B, A), Loc(C, A)],
+    [Loc(A, B), Loc(B, B), Loc(C, B)],
+    [Loc(A, C), Loc(B, C), Loc(C, C)]]
+
+  //  All possible locations
+  var allPlaces = M.flatten(gridPlaces)
+
+
+
+  /** Data lenses/constructors/applications **/
+
   //  Lenses for games and boards
   var player = L.lens('player')
   var play = L.lens('play')
@@ -78,28 +82,9 @@ define([
   var playerScore = function (p) {
     return L.comp(score, L.lens(p)) }
 
-  //  Switch the player in a game.
-  //: Game -> Game
-  var switchPlayer = player.mod(otherPlayer)
 
 
-
-  /** Actions **/
-
-  //  Reset everything except the score
-  //: Action
-  var reset = function (game) {
-    return score.set(score.get(game))(initGame) }
-
-  //: Player -> Action
-  var incScore = function (p) {
-    return playerScore(p).mod(function (v) { return v + 1 }) }
-
-  //: Action -> Action
-  var whenActive = function (f) {
-    return function (game) {
-      return (play.get(game) === Active) ? f(game) : game } }
-
+  /** Actions and action data **/
 
   var winningPaths = [
     //  Diagonals
@@ -126,6 +111,11 @@ define([
       return (p === at(loc).get(game))
     }, rest) : false }
 
+  //: Action -> Action
+  var whenActive = function (f) {
+    return function (game) {
+      return (play.get(game) === Active) ? f(game) : game } }
+
   //  Test forall winning paths that at least one contains all the same players
   //: Game -> Bool
   var winningState = function (game) {
@@ -142,6 +132,15 @@ define([
     return winningState(game) ? Won :
            noMovesLeft(game) ? Draw :
            play.get(game) }
+
+  //  Switch the player in a game.
+  //: Game -> Game
+  var switchPlayer = player.mod(function (player) {
+    return (X == player) ? O : X })
+
+  //: Player -> Action
+  var incScore = function (p) {
+    return playerScore(p).mod(function (v) { return v + 1 }) }
 
   //  Given a location, attempt to place the current player in that location
   //  Only operates during the Active play state
@@ -170,27 +169,30 @@ define([
     var p = player.get(g0)
     return M.comp(play.set(Won), incScore(p))(g0) })
 
+  //  Reset everything except the score
+  //: Action
+  var reset = function (game) {
+    return score.set(score.get(game))(initGame) }
+
 
 
   /** Rendering **/
+
   var _ = React.DOM
 
   //  What kind of styling should each player be associated with
-  var playerStyle = M.hash_map(
-    X, 'info',
-    O, 'warning')
+  var playerStyle = M.hash_map(X, 'info', O, 'warning')
 
   //  Retrieve a player style or default
   var getStyle = function (p) {
-    return M.get(playerStyle, p) || 'default'}
+    return M.get(playerStyle, p) || 'default' }
 
   var Scores = function (game) {
-    return _.div(null,
-      _.h3(null, 'Scores'),
-      [X, O].map(function (p) {
-        return _.p(null,
-          'Player ', p.toString(), ': ', playerScore(p).get(game))
-      })) }
+    var scoreList = [X, O].map(function (p) {
+      return _.p(null,
+        'Player ', p.toString(), ': ', playerScore(p).get(game)) })
+    return _.div(null, _.h3(null, 'Scores'), scoreList)
+  }
 
   var Grid = function (run, game) {
     return _.pre({ className: 'well text-center' },
@@ -206,7 +208,8 @@ define([
           }, _.span(null, (cell || '-').toString()))
 
         }))
-      })) }
+      }))
+  }
 
   var statusAlert = M.hash_map(
     Active, function (game) {
@@ -229,15 +232,20 @@ define([
     return M.get(statusAlert, play.get(game))(game) }
 
   var Controls = function (run, game) {
-    return _.div(null,
-      _.button({className: 'btn btn-danger', onClick: run(reset) },
-        'Reset'),
-      ' ',
-      _.button(
-        { className: 'btn btn-info'
-        , onClick: run(forfeit)
-        , disabled: Active !== play.get(game) },
-        'Forfeit')) }
+
+    var resetBtn = _.button({
+      className: 'btn btn-danger',
+      onClick: run(reset)
+    }, 'Reset')
+
+    var forfeitBtn = _.button({
+      className: 'btn btn-info',
+      onClick: run(forfeit),
+      disabled: Active !== play.get(game)
+    }, 'Forfeit')
+
+    return _.div({ className: 'text-center' }, resetBtn, ' ', forfeitBtn)
+  }
 
   var Debug = function (game) {
     return _.div(null,

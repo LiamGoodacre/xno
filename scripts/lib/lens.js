@@ -3,7 +3,7 @@
 
   Author: Liam Goodacre
 */
-define(['mori'], function (M) {
+define(['lib/mori'], function (M) {
   var Lib = {}
 
   //  Modify

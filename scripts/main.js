@@ -1,8 +1,8 @@
 define([
-  'react',
-  'bacon',
-  'mori',
-  'lens'
+  'lib/react',
+  'lib/bacon',
+  'lib/mori',
+  'lib/lens'
 ], function (React, Bacon, M, L) {
 
   /** Types **
